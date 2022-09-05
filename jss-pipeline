@@ -1,0 +1,31 @@
+image: node:14.16.1
+pipelines:
+  branches:
+    feature/ION-564-jss-autodeploy:
+    - step: &build-jss
+        deployment: sandbox
+        name: Build JSS
+        script:
+          - apt-get update -y
+          - apt-get install zip -y
+          - npm install -g @sitecore-jss/sitecore-jss-cli
+          - npm install
+          - cp scjssconfig.$INSTANCE.json scjssconfig.json
+          - jss setup --nonInteractive --apiKey=$API_KEY --deploySecret=$DEPLOY_SECRET --instancePath=$INSTANCE_PATH --deployUrl=$DEPLOY_URL --layoutServiceHost=$LAYOUT_SERVICE_HOST  
+          - jss build
+          - zip -r app.zip ./build
+        artifacts:
+          - app.zip        
+    - step: &upload-to-s3
+        name: Upload to S3
+        services:
+          - docker
+        script:
+          - pipe: atlassian/aws-code-deploy:1.1.1
+            variables:
+              AWS_ACCESS_KEY_ID: $AWS_ACCESS_KEY_ID
+              AWS_SECRET_ACCESS_KEY: $AWS_SECRET_ACCESS_KEY
+              AWS_DEFAULT_REGION: $AWS_DEFAULT_REGION
+              COMMAND: 'upload'
+              APPLICATION_NAME: $APPLICATION_NAME
+              ZIP_FILE: 'app.zip'
